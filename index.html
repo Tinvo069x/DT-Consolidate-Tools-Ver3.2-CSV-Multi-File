@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DT Consolidate Tools Ver3.1 - CSV Audit</title>
+  <!-- SheetJS library: an Internet connection is required when opening this HTML file. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #0b1526;
+      --navy: #0b3b74;
+      --navy-2: #124e93;
+      --line: #e1e7f1;
+      --muted: #7686a0;
+      --surface: #f3f6fb;
+      --surface-2: #ffffff;
+      --button-muted: #b6c0d1;
+      --danger: #c0362c;
+      --good: #0a9a5c;
+      --good-2: #35c987;
+      --accent-glow: rgba(10, 154, 92, .22);
+      --shadow-sm: 0 1px 2px rgba(11, 27, 52, .05);
+      --shadow-md: 0 10px 28px -14px rgba(11, 27, 52, .28);
+      --shadow-lg: 0 20px 44px -18px rgba(11, 27, 52, .32);
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(900px 420px at 12% -10%, rgba(11, 59, 116, .05), transparent),
+        radial-gradient(900px 420px at 100% 0%, rgba(10, 154, 92, .05), transparent),
+        var(--surface);
+      -webkit-font-smoothing: antialiased;
+    }
+    .workflow-bar { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.9); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+    .workflow { width: min(1140px, calc(100% - 32px)); min-height: 141px; margin: 0 auto; padding: 22px 0 16px; }
+    .workflow-actions { display: flex; align-items: center; gap: 4px; }
+    .folder-picker, .workflow-button {
+      height: 72px; border-radius: var(--radius); font: inherit; font-size: 13.5px; font-weight: 600;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+    }
+    .folder-picker {
+      display: flex; width: 288px; align-items: center; justify-content: center; padding: 12px;
+      color: var(--ink); text-align: center; cursor: pointer;
+      border: 1.5px dashed #c3d0e3; background: var(--surface-2);
+    }
+    .folder-picker input, .file-picker input { display: none; }
+    .folder-picker b { display: block; font-weight: 700; }
+    .folder-picker small { display: block; margin-top: 5px; color: #6e86a2; font-size: 12px; font-weight: 400; line-height: 1.25; }
+    .folder-picker:hover { border-color: var(--good); background: #f4fbf7; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .folder-picker.is-selected { border-style: solid; border-color: var(--good); background: #f0fbf5; box-shadow: 0 0 0 4px var(--accent-glow); }
+    .folder-picker.is-selected b { color: var(--good); }
+
+    /* Animated flow arrow */
+    .workflow-arrow { width: 60px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+    .workflow-arrow svg { width: 46px; height: 22px; overflow: visible; }
+    .workflow-arrow .flow-line {
+      stroke: #c3ccdb; stroke-width: 2; stroke-linecap: round;
+      stroke-dasharray: 3 6; animation: flowDash 900ms linear infinite;
+      transition: stroke .25s ease;
+    }
+    .workflow-arrow .flow-head {
+      fill: none; stroke: #c3ccdb; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+      animation: flowHead 1.4s ease-in-out infinite;
+      transition: stroke .25s ease;
+    }
+    .workflow-actions:has(.folder-picker.is-selected) .arrow-1 .flow-line,
+    .workflow-actions:has(.folder-picker.is-selected) .arrow-1 .flow-head,
+    .workflow-actions:has(#downloadBtn:not(:disabled)) .arrow-1 .flow-line,
+    .workflow-actions:has(#downloadBtn:not(:disabled)) .arrow-1 .flow-head {
+      stroke: var(--good);
+    }
+    @keyframes flowDash { to { stroke-dashoffset: -18; } }
+    @keyframes flowHead { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+    @media (prefers-reduced-motion: reduce) {
+      .workflow-arrow .flow-line, .workflow-arrow .flow-head { animation: none; }
+    }
+
+    button { border: 0; font: inherit; font-weight: 600; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
+    button:disabled { cursor: not-allowed; }
+    .workflow-button { color: #fff; background: var(--button-muted); box-shadow: none; letter-spacing: .1px; }
+    .workflow-button:not(:disabled) { background: linear-gradient(155deg, var(--good-2), var(--good)); box-shadow: var(--shadow-md); }
+    .workflow-button:not(:disabled):hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .workflow-button:not(:disabled):active { transform: translateY(0); }
+    #downloadBtn { width: 228px; }
+    #csvBtn { width: 138px; margin-left: 8px; }
+    .selection-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 25px; margin-top: 10px; color: #7890ab; font-size: 13px; }
+    .file-picker { color: var(--navy); font-weight: 500; cursor: pointer; transition: color .15s ease; }
+    .file-picker:hover, .file-picker.is-selected { color: var(--good); }
+    .text-button { padding: 0; color: #aab6c8; background: transparent; font-size: 13px; font-weight: 400; }
+    .text-button:not(:disabled) { color: var(--navy); }
+    .text-button:not(:disabled):hover { color: var(--good); }
+    .selection-separator { color: #bfcbda; }
+    .status { min-height: 18px; margin: 0; color: #7890ab; font-size: 13px; }
+    .processing-time {
+      display: none; align-items: center; gap: 7px; min-height: 28px; padding: 5px 10px;
+      border: 1px solid #dce5ef; border-radius: 999px; background: #f8fafc; color: #6f8198;
+      font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-sm);
+    }
+    .processing-time.show { display: inline-flex; animation: timerPop .25s ease both; }
+    .processing-time.running { color: var(--navy); border-color: #cfe0f1; background: #f3f8fd; }
+    .processing-time.done { color: var(--good); border-color: #bfe9d3; background: #f1fbf6; }
+    .processing-time.error { color: var(--danger); border-color: #f0cbc7; background: #fff6f5; }
+    .timer-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
+    .processing-time.running .timer-dot { animation: timerPulse .8s ease-in-out infinite alternate; }
+    .timer-value { font-family: "JetBrains Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+    @keyframes timerPulse { from { opacity: .25; transform: scale(.75); } to { opacity: 1; transform: scale(1.15); } }
+    @keyframes timerPop { from { opacity: 0; transform: translateY(-3px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .source-option { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: #7890ab; font-size: 12px; }
+    .source-option input { width: 14px; height: 14px; margin: 0; accent-color: var(--good); }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--good); font-weight: 500; }
+    main { width: min(1140px, calc(100% - 32px)); margin: 0 auto; padding: 46px 8px 60px; }
+    .hero { margin: 0 0 18px; }
+    h1 { margin: 0; color: var(--ink); font-size: 28px; font-weight: 800; letter-spacing: -.5px; }
+    .subtitle { margin: 9px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 860px; }
+    .section-label { margin: 15px 0 18px; color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+    .rules-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); box-shadow: var(--shadow-sm); overflow: hidden; }
+    .rules-lock { display: flex; align-items: center; gap: 13px; min-height: 77px; padding: 14px 20px; }
+    .lock-icon { display: grid; flex: 0 0 auto; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #eef2f6; font-size: 14px; }
+    .rules-lock-copy { min-width: 0; flex: 1; }
+    .rules-lock-copy strong { display: block; color: var(--ink); font-size: 13px; }
+    .rules-lock-copy span { display: block; margin-top: 3px; color: #7890ab; font-size: 12px; }
+    .rules-password { display: flex; flex: 0 0 auto; gap: 8px; }
+    .rules-password input { width: 130px; height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; font-size: 13px; outline: none; transition: border-color .15s ease, box-shadow .15s ease; }
+    .rules-password input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px #0b336b12; }
+    .unlock-button { min-width: 77px; height: 38px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font-size: 13px; }
+    .unlock-button:hover { border-color: var(--navy); background: #f7faff; }
+    .rules-content { display: none; padding: 0 20px 18px; border-top: 1px solid #edf1f5; }
+    .rules-card.is-unlocked .rules-content { display: block; }
+    .rules-card.is-unlocked .rules-lock-copy span { color: var(--good); }
+    .rule { margin: 0; padding: 0; list-style: none; }
+    .rule li { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #edf2f6; line-height: 1.5; font-size: 13px; }
+    .rule li:last-child { border-bottom: 0; }
+    .badge { flex: 0 0 auto; width: 23px; height: 23px; border-radius: 50%; display: grid; place-items: center; background: #e7f7ee; color: var(--good); font-weight: 700; font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    .summary { display: none; margin-top: 22px; }
+    .summary.show { display: block; animation: fadeUp .35s ease both; }
+    .card { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
+    h2 { margin: 0 0 15px; color: var(--navy); font-size: 16px; font-weight: 700; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric { padding: 16px; background: linear-gradient(160deg, #f6faff, #eef5fd); border: 1px solid #e0ecf6; border-radius: 12px; transition: transform .15s ease; }
+    .metric:hover { transform: translateY(-2px); }
+    .metric span { color: var(--muted); display: block; font-size: 12px; margin-bottom: 5px; }
+    .metric strong { color: var(--navy); font-size: 23px; font-weight: 800; }
+    .file-list { max-height: 135px; overflow: auto; margin: 0; padding-left: 20px; color: #52677a; font-size: 13px; line-height: 1.7; }
+    .preview-card { margin-top: 20px; padding: 0; overflow: hidden; animation: fadeUp .35s ease both; }
+    .preview-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 18px 22px 14px; }
+    .preview-head h2 { margin: 0; }
+    .table-wrap { overflow: auto; max-height: 600px; border-top: 1px solid var(--line); }
+    table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 11px; text-align: left; border-right: 1px solid #e9eef3; border-bottom: 1px solid #e9eef3; white-space: nowrap; }
+    th { position: sticky; top: 0; z-index: 1; color: #fff; background: linear-gradient(180deg, var(--navy-2), var(--navy)); font-weight: 600; }
+    tr:nth-child(even) td { background: #fbfdff; }
+    tr:hover td { background: #f2f8ff; }
+    .issue { margin: 12px 0 0; padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: #fff8e7; color: #714d00; border: 1px solid #f3e2a8; }
+    code { color: #075da9; font-family: "JetBrains Mono", Consolas, monospace; font-size: .88em; background: #eef5fd; padding: 1px 5px; border-radius: 4px; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 900px) {
+      .workflow-actions { align-items: stretch; flex-wrap: wrap; }
+      .folder-picker { width: calc(50% - 38px); min-width: 210px; }
+      .workflow-arrow { width: 40px; }
+      .workflow-arrow svg { width: 32px; }
+    }
+    @media (max-width: 680px) {
+      .workflow { padding-top: 14px; }
+      .workflow-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+      .folder-picker, #downloadBtn, #csvBtn { width: 100%; min-width: 0; margin-left: 0; }
+      .workflow-arrow { display: none; }
+      .rules-lock { align-items: flex-start; flex-wrap: wrap; }
+      .rules-password { width: 100%; }
+      .rules-password input { flex: 1; }
+      .source-option { width: 100%; margin-left: 0; }
+      main { padding-top: 28px; }
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="workflow-bar">
+    <div class="workflow">
+      <div class="workflow-actions">
+        <label id="folderPicker" class="folder-picker">
+          <input id="folderInput" type="file" accept=".csv,text/csv" multiple />
+          <span><b>Select CSV File(s)</b><small>Group Sourcing CSV · one or multiple files</small></span>
+        </label>
+        <span class="workflow-arrow arrow-1" aria-hidden="true">
+          <svg viewBox="0 0 46 22" xmlns="http://www.w3.org/2000/svg">
+            <line class="flow-line" x1="1" y1="11" x2="34" y2="11"/>
+            <path class="flow-head" d="M28 4 L38 11 L28 18"/>
+          </svg>
+        </span>
+        <button id="downloadBtn" class="workflow-button" disabled>Download Excel</button>
+        <button id="csvBtn" class="workflow-button" disabled>Download CSV</button>
+      </div>
+      <div class="selection-row">
+        <button id="clearBtn" class="text-button" disabled>Clear Selection</button>
+        <span class="selection-separator" aria-hidden="true">·</span>
+        <span id="status" class="status">Select CSV file(s) to merge automatically.</span>
+        <span id="processingTime" class="processing-time" aria-live="polite">
+          <span class="timer-dot" aria-hidden="true"></span>
+          <span id="processingTimeLabel">Processing Time</span>
+          <span id="processingTimeValue" class="timer-value">0.00 s</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h1>DT Consolidate Tools-Ver3.2 · CSV Multi-File</h1>
+        <p class="subtitle">Select one or multiple Group CSV files. Large CSV files are parsed directly instead of being converted to a SheetJS worksheet first; all files are validated individually and merged into the same four-Type output.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="rulesTitle">
+      <h2 id="rulesTitle" class="section-label">2 · Processing Rules</h2>
+      <div id="rulesCard" class="rules-card">
+        <div class="rules-lock">
+          <span class="lock-icon" aria-hidden="true">🔒</span>
+          <div class="rules-lock-copy">
+            <strong>This section is private.</strong>
+            <span id="rulesHint">Enter the password to view the processing rules.</span>
+          </div>
+          <div class="rules-password">
+            <input id="rulesPassword" type="password" placeholder="Password" aria-label="Password to view processing rules" />
+            <button id="unlockBtn" class="unlock-button" type="button">Unlock</button>
+          </div>
+        </div>
+        <div class="rules-content">
+        <ul class="rule">
+          <li><span class="badge">1</span><span>Reads <b>one or multiple CSV files</b> with headers in row 1 and data from row 2. Files are parsed directly to avoid large-file worksheet memory failures; UTF-8 and Windows-1252 text are supported.</span></li>
+          <li><span class="badge">2</span><span>Maps Group Sourcing headers such as <code>MM[Material]</code> → LD Part, <code>MM[Material Description]</code> → Des, <code>MM[Parent XYZ Indicator]</code> → XYZ, and <code>MM[Reorder Point]</code> → ROP.</span></li>
+          <li><span class="badge">3</span><span>Pivots <code>Date[Week-Month]</code> plus <code>[v01_Demand]</code>, <code>[v01_Demand_FCST_XYS]</code>, <code>[v02_Supply]</code>, and <code>[v03_Acc_Variance]</code> into the same four-Type output.</span></li>
+          <li><span class="badge">4</span><span>Timeline dates become <code>d-mmm-yy</code> text headers; date cells are preserved and exported as <code>d-mmm-yy</code>.</span></li>
+          <li><span class="badge">5</span><span>Outputs the standard 18 fixed columns in the requested order. Unsupported source columns are dropped; unavailable target fields remain blank.</span></li>
+          <li><span class="badge">6</span><span>Places Timeline columns after fixed columns and sorts them by date from oldest to newest.</span></li>
+          <li><span class="badge">7</span><span>For the new layout, fills missing Type rows to ensure four rows per LD Part. Removes blank LD Part / Type rows; sorts by LD Part A→Z, then Type A→Z.</span></li>
+          <li><span class="badge">8</span><span>When <code>ROP</code> is <code>0</code>, sets all Timeline values to <code>0</code> for the row whose <code>Type</code> is <code>01 Demand FCST-XYS</code>.</span></li>
+          <li><span class="badge">9</span><span>Recalculates <code>03 Acc Variance</code> by <code>LD Part</code>: first Timeline = <code>Stock-0007 − 01 Demand − 01 Demand FCST-XYS + 02 Supply</code>; each later Timeline uses the previous Acc Variance balance.</span></li>
+          <li><span class="badge">10</span><span>On <b>Excel / CSV export only</b>, blank Timeline cells are changed to <code>0</code> for <code>01 Demand</code>, <code>01 Demand FCST-XYS</code>, and <code>02 Supply</code>. Preview and calculation logic remain unchanged.</span></li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="summary" class="card summary">
+      <div class="metrics">
+        <div class="metric"><span>Files Processed</span><strong id="fileCount">0 / 0</strong></div>
+        <div class="metric"><span>Data Rows</span><strong id="rowCount">0</strong></div>
+        <div class="metric"><span>Output Columns</span><strong id="colCount">0</strong></div>
+      </div>
+      <h2>File List</h2>
+      <ul id="fileList" class="file-list"></ul>
+      <div id="issues"></div>
+    </section>
+
+    <section id="previewCard" class="card preview-card" hidden>
+      <div class="preview-head"><h2>Preview: First 100 Rows</h2><span id="previewInfo" class="note"></span></div>
+      <div class="table-wrap"><table id="previewTable"></table></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const supported = /\.csv$/i;
+    const FIXED_OUTPUT_COLUMNS = [
+      "LD Part", "Des", "XYZ", "Safety Stock", "ROP", "Stock-0007",
+      "1st Shortage Date_Stock", "1st Shortage Date_DT", "DT-List", "LT",
+      "Demand in LT (STO+FCST)_Start Date", "Supply Gap in LT-Manual PR",
+      "Supply Gap Risk", "Manual PR Request Date", "Total Open PO",
+      "Total PR Qty", "Type", "Risk Stage"
+    ];
+    const SOURCE_HEADER_MAP = {
+      "material": "LD Part", "material description": "Des", "xyz": "XYZ", "parent xyz indicator": "XYZ",
+      "safety stock": "Safety Stock", "reorder point": "ROP", "rop": "ROP",
+      "stock-0007": "Stock-0007", "1st shortage date_stock": "1st Shortage Date_Stock",
+      "1st shortage date_dt": "1st Shortage Date_DT", "dt-list": "DT-List",
+      "lead time": "LT", "lt": "LT",
+      "demand in lt (sto+fcst)_start date": "Demand in LT (STO+FCST)_Start Date",
+      "supply gap in lt (manual pr)": "Supply Gap in LT-Manual PR",
+      "supply gap in lt-manual pr": "Supply Gap in LT-Manual PR",
+      "manual pr supply gap risk": "Supply Gap Risk", "supply gap risk": "Supply Gap Risk",
+      "manual pr request date": "Manual PR Request Date",
+      "open po qty": "Total Open PO", "total open po": "Total Open PO",
+      "total pr": "Total PR Qty", "total pr qty": "Total PR Qty",
+      "ld part": "LD Part", "des": "Des", "type": "Type", "risk stage": "Risk Stage"
+    };
+    function normalizeSourceHeader(header) {
+      let text = String(header ?? "").replace(/^\uFEFF/, "").trim().replace(/\s+/g, " ");
+
+      // Group Sourcing CSV wrappers: MM[Material], Date[Week-Month], etc.
+      const wrapped = text.match(/^(?:MM|Date)\[(.*)\]$/i);
+      if (wrapped) text = wrapped[1].trim();
+
+      // Group Sourcing measure headers -> existing four Type names.
+      const measure = text.match(/^\[(v\d{2})_(.*)\]$/i);
+      if (measure) {
+        const code = measure[1].toLowerCase();
+        const name = measure[2].replace(/_/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+        if (code === "v01" && name === "demand") return "01 demand";
+        if (code === "v01" && name === "demand fcst xys") return "01 demand fcst-xys";
+        if (code === "v02" && name === "supply") return "02 supply";
+        if (code === "v03" && name === "acc variance") return "03 acc variance";
+      }
+
+      return text.toLowerCase();
+    }
+    function mapFixedHeader(header) {
+      return SOURCE_HEADER_MAP[normalizeSourceHeader(header)] || null;
+    }
+    const state = { files: [], columns: [], sources: [], rows: [], dateCells: new Set(), timelineColumns: new Map(), accVarianceFormulas: new Map(), csvMaterialGroups: new Map(), failedFiles: [], issues: [], audit: { sourceRows: 0, validRows: 0, sourceMaterials: new Set(), invalidDateRows: 0, duplicateRows: 0, malformedRows: 0 } };
+
+    const status = (message, kind = "") => {
+      const el = $("#status");
+      el.textContent = message;
+      el.className = `status ${kind}`;
+    };
+
+    let processingTimerId = null;
+    let processingStartedAt = 0;
+
+    function formatProcessingTime(milliseconds) {
+      if (milliseconds < 1000) return `${Math.round(milliseconds)} ms`;
+      if (milliseconds < 60000) return `${(milliseconds / 1000).toFixed(2)} s`;
+      const minutes = Math.floor(milliseconds / 60000);
+      const seconds = ((milliseconds % 60000) / 1000).toFixed(1).padStart(4, "0");
+      return `${minutes}m ${seconds}s`;
+    }
+
+    function startProcessingTimer() {
+      const box = $("#processingTime");
+      const value = $("#processingTimeValue");
+      processingStartedAt = performance.now();
+      clearInterval(processingTimerId);
+      box.className = "processing-time show running";
+      $("#processingTimeLabel").textContent = "Processing";
+      value.textContent = "0 ms";
+      processingTimerId = setInterval(() => {
+        value.textContent = formatProcessingTime(performance.now() - processingStartedAt);
+      }, 50);
+    }
+
+    function stopProcessingTimer(kind = "done") {
+      const elapsed = processingStartedAt ? performance.now() - processingStartedAt : 0;
+      clearInterval(processingTimerId);
+      processingTimerId = null;
+      const box = $("#processingTime");
+      box.className = `processing-time show ${kind}`;
+      $("#processingTimeLabel").textContent = kind === "done" ? "Processing Time" : "Stopped At";
+      $("#processingTimeValue").textContent = formatProcessingTime(elapsed);
+      return elapsed;
+    }
+
+    function resetProcessingTimer() {
+      clearInterval(processingTimerId);
+      processingTimerId = null;
+      processingStartedAt = 0;
+      const box = $("#processingTime");
+      box.className = "processing-time";
+      $("#processingTimeLabel").textContent = "Processing Time";
+      $("#processingTimeValue").textContent = "0.00 s";
+    }
+
+    function formatExcelDate(value) {
+      if (value instanceof Date) {
+        const serial = (Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) - Date.UTC(1899, 11, 30)) / 86400000;
+        return XLSX.SSF.format("d-mmm-yy", serial);
+      }
+      if (typeof value === "number") return XLSX.SSF.format("d-mmm-yy", value);
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.valueOf())) {
+        const serial = (Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()) - Date.UTC(1899, 11, 30)) / 86400000;
+        return XLSX.SSF.format("d-mmm-yy", serial);
+      }
+      return String(value ?? "").trim();
+    }
+
+    function excelSerial(value) {
+      if (typeof value === "number") return value;
+      if (value instanceof Date) return (Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) - Date.UTC(1899, 11, 30)) / 86400000;
+      return value;
+    }
+
+    function cellIsDate(cell) {
+      return Boolean(cell && (cell.t === "d" || (cell.t === "n" && cell.z && XLSX.SSF.is_date(cell.z))));
+    }
+
+    // Source Excel may incorrectly mark quantities as dates. Use the OUTPUT
+    // field meaning, not source cell style, to choose a date number format.
+    const OUTPUT_DATE_HEADERS = new Set([
+      "1st Shortage Date_Stock", "1st Shortage Date_DT",
+      "Manual PR Request Date", "Demand in LT (STO+FCST)_Start Date"
+    ]);
+    function rememberOutputDate(rowIndex, columnIndex, cell) {
+      if (!OUTPUT_DATE_HEADERS.has(state.columns[columnIndex]) || !cell) return;
+      if (cell.v === null || cell.v === undefined || cell.v === "") return;
+      state.dateCells.add(`${rowIndex}:${columnIndex}`);
+    }
+
+    function getFileLabel(file) {
+      return file.webkitRelativePath || file.name;
+    }
+
+    function setSelectedFiles(fileList, source = "") {
+      const incoming = Array.from(fileList).filter((file) => supported.test(file.name));
+      const known = new Map(state.files.map((file) => [`${getFileLabel(file)}|${file.size}|${file.lastModified}`, file]));
+      incoming.forEach((file) => known.set(`${getFileLabel(file)}|${file.size}|${file.lastModified}`, file));
+      state.files = [...known.values()];
+      $("#clearBtn").disabled = state.files.length === 0;
+      $("#folderPicker").classList.toggle("is-selected", source === "folder" && state.files.length > 0);
+      status(
+        state.files.length
+          ? `${state.files.length} CSV file(s) selected. Processing automatically…`
+          : "No valid CSV files found.",
+        state.files.length ? "ok" : "error"
+      );
+    }
+
+    function resetResult() {
+      state.columns = [...FIXED_OUTPUT_COLUMNS];
+      state.rows = [];
+      state.sources = [];
+      state.dateCells = new Set();
+      state.timelineColumns = new Map();
+      state.accVarianceFormulas = new Map();
+      state.issues = [];
+      state.csvMaterialGroups = new Map();
+      state.failedFiles = [];
+      state.audit = { sourceRows: 0, validRows: 0, sourceMaterials: new Set(), invalidDateRows: 0, duplicateRows: 0, malformedRows: 0 };
+      $("#summary").classList.remove("show");
+      $("#previewCard").hidden = true;
+      $("#downloadBtn").disabled = true;
+      $("#csvBtn").disabled = true;
+    }
+
+    function uniqueHeader(base, used, isQty) {
+      let header = base || "(Blank header)";
+      if (!used.has(header)) return header;
+      if (isQty) return header;
+      let sequence = 2;
+      while (used.has(`${header} (${sequence})`)) sequence += 1;
+      return `${header} (${sequence})`;
+    }
+
+    function addColumn(header, timelineSortValue = null) {
+      let index = state.columns.indexOf(header);
+      if (index === -1) {
+        index = state.columns.length;
+        state.columns.push(header);
+      }
+      if (Number.isFinite(timelineSortValue)) state.timelineColumns.set(header, timelineSortValue);
+      return index;
+    }
+
+    function timelineSortValue(value) {
+      if (typeof value === "number") return value;
+      if (value instanceof Date) return excelSerial(value);
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.valueOf()) ? null : excelSerial(parsed);
+    }
+
+    function excludedHeader(header) {
+      return ["total", "remark"].includes(String(header ?? "").trim().toLowerCase());
+    }
+
+    function sortTimelineColumns() {
+      const timelineColumns = state.columns
+        .filter((header) => state.timelineColumns.has(header))
+        .sort((left, right) => state.timelineColumns.get(left) - state.timelineColumns.get(right));
+      const sortedColumns = [...FIXED_OUTPUT_COLUMNS, ...timelineColumns];
+      const oldIndexes = new Map(state.columns.map((header, index) => [header, index]));
+      const newIndexes = new Map(sortedColumns.map((header, index) => [header, index]));
+
+      state.rows = state.rows.map((row) => sortedColumns.map((header) => row[oldIndexes.get(header)] ?? null));
+      state.dateCells = new Set([...state.dateCells].flatMap((key) => {
+        const [row, oldColumn] = key.split(":").map(Number);
+        const mapped = newIndexes.get(state.columns[oldColumn]);
+        return mapped === undefined ? [] : [`${row}:${mapped}`];
+      }));
+      state.columns = sortedColumns;
+    }
+
+    function findColumn(headerName) {
+      return state.columns.findIndex((header) => String(header).trim().toLowerCase() === headerName.toLowerCase());
+    }
+
+    function filterAndSortRows() {
+      const ldPartColumn = findColumn("LD Part");
+      const typeColumn = findColumn("Type");
+      const rowsBeforeFilter = state.rows.length;
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+      const indexedRows = state.rows
+        .map((row, originalRow) => ({ row, originalRow }))
+        .filter((item) =>
+          (ldPartColumn === -1 || String(item.row[ldPartColumn] ?? "").trim() !== "") &&
+          (typeColumn === -1 || String(item.row[typeColumn] ?? "").trim() !== "")
+        );
+
+      if (typeColumn === -1) state.issues.push("Type column was not found, so rows with blank Type could not be removed.");
+      if (ldPartColumn === -1) state.issues.push("LD Part column was not found, so rows with blank LD Part could not be removed. The result is sorted by Type only.");
+
+      indexedRows.sort((left, right) => {
+        const comparePart = ldPartColumn === -1 ? 0 : collator.compare(String(left.row[ldPartColumn] ?? ""), String(right.row[ldPartColumn] ?? ""));
+        if (comparePart !== 0) return comparePart;
+        return typeColumn === -1 ? 0 : collator.compare(String(left.row[typeColumn] ?? ""), String(right.row[typeColumn] ?? ""));
+      });
+
+      const newRowIndexes = new Map(indexedRows.map((item, newRow) => [item.originalRow, newRow]));
+      state.rows = indexedRows.map((item) => item.row);
+      state.dateCells = new Set([...state.dateCells].flatMap((key) => {
+        const [oldRow, column] = key.split(":").map(Number);
+        const newRow = newRowIndexes.get(oldRow);
+        return newRow === undefined ? [] : [`${newRow}:${column}`];
+      }));
+
+      return rowsBeforeFilter - state.rows.length;
+    }
+
+    function isZero(value) {
+      if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) return false;
+      const numericValue = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+      return Number.isFinite(numericValue) && numericValue === 0;
+    }
+
+    function zeroForecastTimelineWhenRopIsZero() {
+      const ropColumn = findColumn("ROP");
+      const typeColumn = findColumn("Type");
+      if (ropColumn === -1) {
+        state.issues.push("ROP column was not found, so the ROP = 0 rule was not applied.");
+        return 0;
+      }
+      if (typeColumn === -1) {
+        state.issues.push("Type column was not found, so the ROP = 0 rule was not applied.");
+        return 0;
+      }
+
+      let affectedRows = 0;
+      state.rows.forEach((row) => {
+        const isForecastRow = String(row[typeColumn] ?? "").trim().toLowerCase() === "01 demand fcst-xys";
+        if (!isForecastRow || !isZero(row[ropColumn])) return;
+
+        state.columns.forEach((header, column) => {
+          if (state.timelineColumns.has(header)) row[column] = 0;
+        });
+        affectedRows += 1;
+      });
+      return affectedRows;
+    }
+
+    function normalizedText(value) {
+      return String(value ?? "").trim().toLowerCase();
+    }
+
+    function numericValue(value) {
+      if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) return 0;
+      const parsed = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function outputCellAddress(row, col) {
+      // +1 because row 1 of the exported worksheet is the header row.
+      return XLSX.utils.encode_cell({ r: row + 1, c: col });
+    }
+
+    function calculateAccVariance() {
+      const ldPartColumn = findColumn("LD Part");
+      const typeColumn = findColumn("Type");
+      const stockColumn = findColumn("Stock-0007");
+      const timelineIndexes = state.columns
+        .map((header, index) => state.timelineColumns.has(header) ? index : -1)
+        .filter((index) => index !== -1);
+
+      if (ldPartColumn === -1 || typeColumn === -1 || stockColumn === -1 || !timelineIndexes.length) {
+        const missing = [
+          ldPartColumn === -1 && "LD Part",
+          typeColumn === -1 && "Type",
+          stockColumn === -1 && "Stock-0007",
+          !timelineIndexes.length && "Timeline"
+        ].filter(Boolean).join(", ");
+        state.issues.push(`${missing} column(s) were not found, so Step 9 was not applied.`);
+        return { calculatedRows: 0, skippedRows: 0 };
+      }
+
+      const rowsByPart = new Map();
+      state.rows.forEach((row, rowIndex) => {
+        const part = normalizedText(row[ldPartColumn]);
+        const type = normalizedText(row[typeColumn]);
+        if (!part || !type) return;
+        if (!rowsByPart.has(part)) rowsByPart.set(part, new Map());
+        const rowsByType = rowsByPart.get(part);
+        if (!rowsByType.has(type)) rowsByType.set(type, []);
+        rowsByType.get(type).push(rowIndex);
+      });
+
+      const demandType = "01 demand";
+      const forecastType = "01 demand fcst-xys";
+      const supplyType = "02 supply";
+      const varianceType = "03 acc variance";
+      let calculatedRows = 0;
+      let skippedRows = 0;
+
+      rowsByPart.forEach((rowsByType) => {
+        const demandRows = rowsByType.get(demandType) || [];
+        const forecastRows = rowsByType.get(forecastType) || [];
+        const supplyRows = rowsByType.get(supplyType) || [];
+        const varianceRows = rowsByType.get(varianceType) || [];
+
+        varianceRows.forEach((varianceRow, occurrence) => {
+          const demandRow = demandRows[occurrence];
+          const forecastRow = forecastRows[occurrence];
+          const supplyRow = supplyRows[occurrence];
+          if ([demandRow, forecastRow, supplyRow].some((row) => row === undefined)) {
+            skippedRows += 1;
+            return;
+          }
+
+          let previousBalance = 0;
+          timelineIndexes.forEach((timelineColumn, timelineIndex) => {
+            const demandAddress = outputCellAddress(demandRow, timelineColumn);
+            const forecastAddress = outputCellAddress(forecastRow, timelineColumn);
+            const supplyAddress = outputCellAddress(supplyRow, timelineColumn);
+            const demand = numericValue(state.rows[demandRow][timelineColumn]);
+            const forecast = numericValue(state.rows[forecastRow][timelineColumn]);
+            const supply = numericValue(state.rows[supplyRow][timelineColumn]);
+            let formula;
+            let balance;
+
+            if (timelineIndex === 0) {
+              const stockAddress = outputCellAddress(demandRow, stockColumn);
+              balance = numericValue(state.rows[demandRow][stockColumn]) - demand - forecast + supply;
+              formula = `${stockAddress}-${demandAddress}-${forecastAddress}+${supplyAddress}`;
+            } else {
+              const previousVarianceAddress = outputCellAddress(varianceRow, timelineIndexes[timelineIndex - 1]);
+              balance = previousBalance - demand - forecast + supply;
+              formula = `${previousVarianceAddress}-${demandAddress}-${forecastAddress}+${supplyAddress}`;
+            }
+
+            state.rows[varianceRow][timelineColumn] = balance;
+            state.accVarianceFormulas.set(`${varianceRow}:${timelineColumn}`, formula);
+            previousBalance = balance;
+          });
+          calculatedRows += 1;
+        });
+      });
+
+      return { calculatedRows, skippedRows };
+    }
+
+    function valueForOutput(cell) {
+      if (!cell) return null;
+      if (cell.v === undefined || cell.v === null) return cell.f ? `=${cell.f}` : null;
+      return cellIsDate(cell) ? excelSerial(cell.v) : cell.v;
+    }
+
+    function valueForTarget(cell, targetHeader) {
+      const value = valueForOutput(cell);
+      if (!OUTPUT_DATE_HEADERS.has(targetHeader) || value === null || value === undefined || value === "") return value;
+      if (typeof value === "number") return value;
+      const serial = timelineSortValue(value);
+      return Number.isFinite(serial) ? serial : value;
+    }
+
+    // New XP export: row 1 has Week-Month dates, row 2 repeats the data Type
+    // over the timeline columns. Keep the legacy Qty parser below intact.
+    function isFourFileLayout(worksheet, range) {
+      const a2 = String(worksheet[XLSX.utils.encode_cell({ r: 1, c: 0 })]?.v ?? "").trim().toLowerCase();
+      const r2 = String(worksheet[XLSX.utils.encode_cell({ r: 1, c: 17 })]?.v ?? "").trim().toLowerCase();
+      return a2 === "material" && ["01 demand", "01 demand fcst-xys", "02 supply", "03 acc variance"].includes(r2);
+    }
+
+    function readFourFileLayout(worksheet, range, file, sheetName) {
+      const headerCols = [];
+      const timelineCols = [];
+      const types = new Set();
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const heading = String(worksheet[XLSX.utils.encode_cell({ r: 1, c: col })]?.v ?? "").trim();
+        if (!heading || excludedHeader(heading)) continue;
+        const type = heading.toLowerCase();
+        if (["01 demand", "01 demand fcst-xys", "02 supply", "03 acc variance"].includes(type)) {
+          const dateCell = worksheet[XLSX.utils.encode_cell({ r: 0, c: col })];
+          if (!dateCell || dateCell.v === undefined || dateCell.v === null) continue;
+          const label = formatExcelDate(dateCell.v);
+          const order = timelineSortValue(dateCell.v);
+          if (!Number.isFinite(order)) continue;
+          timelineCols.push({ sourceCol: col, outputCol: addColumn(label, order) });
+          types.add(heading);
+        } else {
+          const targetHeader = mapFixedHeader(heading);
+          if (targetHeader) headerCols.push({ sourceCol: col, outputCol: addColumn(targetHeader) });
+        }
+      }
+      const typeCol = addColumn("Type");
+      if (!timelineCols.length || !types.size) throw new Error("No Week-Month timeline/date columns found.");
+      if (types.size !== 1) throw new Error("This file contains more than one timeline Type; expected one of Acc, Demand, FCST or Supply.");
+      const type = [...types][0];
+      let importedRows = 0;
+      for (let row = 2; row <= range.e.r; row += 1) {
+        const material = worksheet[XLSX.utils.encode_cell({ r: row, c: 0 })]?.v;
+        if (material === null || material === undefined || String(material).trim() === "") continue;
+        // XP exports append an "Applied filters:" footer after the data.
+        // It has no Material Description and must not become a material row.
+        const description = worksheet[XLSX.utils.encode_cell({ r: row, c: 1 })]?.v;
+        if (String(material).startsWith("Applied filters:") || description === undefined || description === null || String(description).trim() === "") continue;
+        const outputRow = Array(state.columns.length).fill(null);
+        headerCols.forEach(({ sourceCol, outputCol }) => {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: sourceCol })];
+          outputRow[outputCol] = valueForOutput(cell);
+          rememberOutputDate(state.rows.length, outputCol, cell);
+        });
+        timelineCols.forEach(({ sourceCol, outputCol }) => {
+          outputRow[outputCol] = valueForOutput(worksheet[XLSX.utils.encode_cell({ r: row, c: sourceCol })]);
+        });
+        outputRow[typeCol] = type;
+        state.rows.push(outputRow);
+        state.sources.push(getFileLabel(file));
+        importedRows += 1;
+      }
+      return { file: getFileLabel(file), sheetName, importedRows, newLayout: true };
+    }
+
+    // C08 / V15 format: one row per Material + Week-Month, with all four
+    // demand/supply measures in separate columns. Pivot it to the unchanged
+    // four-Type, date-across-columns output expected by the existing logic.
+    function isLongWeekMonthLayout(worksheet, range) {
+      const headers = new Set();
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        headers.add(normalizeSourceHeader(worksheet[XLSX.utils.encode_cell({ r: 0, c: col })]?.v));
+      }
+      return ["material", "week-month", "01 demand", "01 demand fcst-xys", "02 supply", "03 acc variance"]
+        .every((name) => headers.has(name));
+    }
+
+    function readLongWeekMonthLayout(worksheet, range, file, sheetName) {
+      const headerIndexes = new Map();
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const header = normalizeSourceHeader(worksheet[XLSX.utils.encode_cell({ r: 0, c: col })]?.v);
+        if (header && !headerIndexes.has(header)) headerIndexes.set(header, col);
+      }
+      const measureTypes = ["01 Demand", "01 Demand FCST-XYS", "02 Supply", "03 Acc Variance"];
+      const fixedColumns = [...headerIndexes].flatMap(([header, sourceCol]) => {
+        const target = mapFixedHeader(header);
+        return target && target !== "Type" ? [{ sourceCol, targetCol: addColumn(target), target }] : [];
+      });
+      const materialCol = headerIndexes.get("material");
+      const dateCol = headerIndexes.get("week-month");
+      const typeCol = addColumn("Type");
+      const materialGroups = new Map();
+      let importedRows = 0;
+      let duplicateDates = 0;
+      let invalidDates = 0;
+
+      for (let sourceRow = 1; sourceRow <= range.e.r; sourceRow += 1) {
+        state.audit.sourceRows += 1;
+        const getCell = (col) => worksheet[XLSX.utils.encode_cell({ r: sourceRow, c: col })];
+        const material = valueForOutput(getCell(materialCol));
+        if (material === null || material === undefined || !String(material).trim() ||
+            String(material).startsWith("Applied filters:")) continue;
+        state.audit.sourceMaterials.add(normalizedText(material));
+        const rawDate = getCell(dateCol)?.v;
+        const dateOrder = timelineSortValue(rawDate);
+        if (!Number.isFinite(dateOrder)) { invalidDates += 1; state.audit.invalidDateRows += 1; continue; }
+        const dateLabel = formatExcelDate(rawDate);
+        const timelineCol = addColumn(dateLabel, dateOrder);
+        const key = normalizedText(material);
+
+        if (!materialGroups.has(key)) {
+          const firstRow = state.rows.length;
+          const indexes = new Map();
+          measureTypes.forEach((type) => {
+            const outputRow = Array(state.columns.length).fill(null);
+            fixedColumns.forEach(({ sourceCol: col, targetCol, target }) => {
+              const cell = getCell(col);
+              outputRow[targetCol] = valueForTarget(cell, target);
+              rememberOutputDate(state.rows.length, targetCol, cell);
+            });
+            outputRow[typeCol] = type;
+            indexes.set(type, state.rows.length);
+            state.rows.push(outputRow);
+            state.sources.push(getFileLabel(file));
+          });
+          materialGroups.set(key, { indexes, seenDates: new Set() });
+        }
+        const group = materialGroups.get(key);
+        if (group.seenDates.has(dateLabel)) { duplicateDates += 1; state.audit.duplicateRows += 1; continue; }
+        group.seenDates.add(dateLabel);
+        measureTypes.forEach((type) => {
+          const cell = getCell(headerIndexes.get(normalizeSourceHeader(type)));
+          state.rows[group.indexes.get(type)][timelineCol] = valueForOutput(cell);
+        });
+        importedRows += 1;
+        state.audit.validRows += 1;
+      }
+      if (!importedRows) throw new Error("No valid Material / Week-Month records found.");
+      if (invalidDates) state.issues.push(`${getFileLabel(file)}: skipped ${invalidDates} row(s) with invalid Week-Month dates.`);
+      if (duplicateDates) state.issues.push(`${getFileLabel(file)}: ignored ${duplicateDates} duplicate Material + Week-Month row(s) (kept first).`);
+      return { file: getFileLabel(file), sheetName, importedRows, newLayout: true };
+    }
+
+    function completeFourRowsPerMaterial() {
+      const partCol = findColumn("LD Part");
+      const typeCol = findColumn("Type");
+      if (partCol < 0 || typeCol < 0) return 0;
+      const requiredTypes = ["01 Demand", "01 Demand FCST-XYS", "02 Supply", "03 Acc Variance"];
+      const groups = new Map();
+      state.rows.forEach((row) => {
+        const part = normalizedText(row[partCol]);
+        if (!part) return;
+        if (!groups.has(part)) groups.set(part, { example: row, types: new Set() });
+        groups.get(part).types.add(normalizedText(row[typeCol]));
+      });
+      let added = 0;
+      groups.forEach(({ example, types }) => {
+        requiredTypes.forEach((type) => {
+          if (types.has(normalizedText(type))) return;
+          const row = [...example];
+          row[typeCol] = type;
+          state.columns.forEach((header, col) => { if (state.timelineColumns.has(header)) row[col] = 0; });
+          state.rows.push(row);
+          state.sources.push("Generated missing Type");
+          added += 1;
+        });
+      });
+      return added;
+    }
+
+    function parseCsvText(text, onRow) {
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      let rowNumber = 0;
+
+      const emitRow = () => {
+        row.push(field);
+        field = "";
+        if (row.length > 1 || String(row[0] ?? "").trim() !== "") {
+          onRow(row, rowNumber);
+          rowNumber += 1;
+        }
+        row = [];
+      };
+
+      for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i += 1; }
+            else inQuotes = false;
+          } else {
+            field += ch;
+          }
+          continue;
+        }
+        if (ch === '"') { inQuotes = true; continue; }
+        if (ch === ',') { row.push(field); field = ""; continue; }
+        if (ch === '\n') {
+          if (field.endsWith('\r')) field = field.slice(0, -1);
+          emitRow();
+          continue;
+        }
+        field += ch;
+      }
+      if (field.length || row.length) {
+        if (field.endsWith('\r')) field = field.slice(0, -1);
+        emitRow();
+      }
+      if (inQuotes) throw new Error("Malformed CSV: an opened quoted field was not closed.");
+      return rowNumber;
+    }
+
+    function parseNumericCsvValue(value) {
+      const text = String(value ?? "").trim();
+      if (!text) return null;
+      const normalized = text.replace(/,/g, "");
+      if (!/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(normalized)) return value;
+      const number = Number(normalized);
+      return Number.isFinite(number) ? number : value;
+    }
+
+    const NUMERIC_FIXED_OUTPUTS = new Set([
+      "Safety Stock", "ROP", "Stock-0007", "LT", "Supply Gap in LT-Manual PR",
+      "Total Open PO", "Total PR Qty"
+    ]);
+
+    function csvValueForTarget(raw, targetHeader) {
+      const text = String(raw ?? "").trim();
+      if (!text) return null;
+      if (OUTPUT_DATE_HEADERS.has(targetHeader)) {
+        const serial = timelineSortValue(text);
+        return Number.isFinite(serial) ? serial : text;
+      }
+      if (NUMERIC_FIXED_OUTPUTS.has(targetHeader)) return parseNumericCsvValue(text);
+      return text;
+    }
+
+    async function decodeCsvFile(file) {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch (_) {
+        return new TextDecoder("windows-1252").decode(bytes);
+      }
+    }
+
+    async function readFile(file) {
+      const csvText = await decodeCsvFile(file);
+      let headers = null;
+      let headerIndexes = null;
+      let fixedColumns = null;
+      let materialCol = -1;
+      let dateCol = -1;
+      let typeCol = -1;
+      let importedRows = 0;
+      let duplicateDates = 0;
+      let invalidDates = 0;
+      let malformedRows = 0;
+      let validRowsSeen = 0;
+      const measureTypes = ["01 Demand", "01 Demand FCST-XYS", "02 Supply", "03 Acc Variance"];
+      const requiredHeaders = ["material", "week-month", "01 demand", "01 demand fcst-xys", "02 supply", "03 acc variance"];
+
+      parseCsvText(csvText, (cells, rowNumber) => {
+        if (rowNumber === 0) {
+          headers = cells.map(normalizeSourceHeader);
+          headerIndexes = new Map();
+          headers.forEach((header, index) => { if (header && !headerIndexes.has(header)) headerIndexes.set(header, index); });
+          const missing = requiredHeaders.filter((name) => !headerIndexes.has(name));
+          if (missing.length) throw new Error(`Unsupported CSV header. Missing: ${missing.join(", ")}`);
+          materialCol = headerIndexes.get("material");
+          dateCol = headerIndexes.get("week-month");
+          typeCol = addColumn("Type");
+          fixedColumns = [...headerIndexes].flatMap(([header, sourceCol]) => {
+            const target = mapFixedHeader(header);
+            return target && target !== "Type" ? [{ sourceCol, targetCol: addColumn(target), target }] : [];
+          });
+          return;
+        }
+
+        state.audit.sourceRows += 1;
+        if (headers && cells.length !== headers.length) {
+          malformedRows += 1;
+          state.audit.malformedRows += 1;
+          while (cells.length < headers.length) cells.push("");
+        }
+
+        const material = String(cells[materialCol] ?? "").trim();
+        if (!material || material.startsWith("Applied filters:")) return;
+        const key = normalizedText(material);
+        state.audit.sourceMaterials.add(key);
+
+        const rawDate = String(cells[dateCol] ?? "").trim();
+        const dateOrder = timelineSortValue(rawDate);
+        if (!Number.isFinite(dateOrder)) {
+          invalidDates += 1;
+          state.audit.invalidDateRows += 1;
+          return;
+        }
+        const dateLabel = formatExcelDate(rawDate);
+        const timelineCol = addColumn(dateLabel, dateOrder);
+
+        if (!state.csvMaterialGroups.has(key)) {
+          const indexes = new Map();
+          measureTypes.forEach((type) => {
+            const outputRow = Array(state.columns.length).fill(null);
+            fixedColumns.forEach(({ sourceCol, targetCol, target }) => {
+              outputRow[targetCol] = csvValueForTarget(cells[sourceCol], target);
+              if (OUTPUT_DATE_HEADERS.has(target) && outputRow[targetCol] !== null && outputRow[targetCol] !== "") {
+                state.dateCells.add(`${state.rows.length}:${targetCol}`);
+              }
+            });
+            outputRow[typeCol] = type;
+            indexes.set(type, state.rows.length);
+            state.rows.push(outputRow);
+            state.sources.push(getFileLabel(file));
+          });
+          state.csvMaterialGroups.set(key, { indexes, seenDates: new Set(), firstFile: getFileLabel(file) });
+        } else {
+          const group = state.csvMaterialGroups.get(key);
+          const exampleIndex = group.indexes.get("01 Demand");
+          fixedColumns.forEach(({ sourceCol, targetCol, target }) => {
+            const incoming = csvValueForTarget(cells[sourceCol], target);
+            if (incoming === null || incoming === undefined || incoming === "") return;
+            measureTypes.forEach((type) => {
+              const row = state.rows[group.indexes.get(type)];
+              if (row[targetCol] === null || row[targetCol] === undefined || row[targetCol] === "") row[targetCol] = incoming;
+            });
+            if (OUTPUT_DATE_HEADERS.has(target) && state.rows[exampleIndex][targetCol] !== null && state.rows[exampleIndex][targetCol] !== "") {
+              measureTypes.forEach((type) => state.dateCells.add(`${group.indexes.get(type)}:${targetCol}`));
+            }
+          });
+        }
+
+        const group = state.csvMaterialGroups.get(key);
+        validRowsSeen += 1;
+        if (group.seenDates.has(dateLabel)) {
+          duplicateDates += 1;
+          state.audit.duplicateRows += 1;
+          return;
+        }
+        group.seenDates.add(dateLabel);
+
+        measureTypes.forEach((type) => {
+          const sourceCol = headerIndexes.get(normalizeSourceHeader(type));
+          state.rows[group.indexes.get(type)][timelineCol] = parseNumericCsvValue(cells[sourceCol]);
+        });
+        importedRows += 1;
+        state.audit.validRows += 1;
+      });
+
+      if (!headers) throw new Error("CSV is empty.");
+      if (!validRowsSeen) throw new Error("No valid Material / Week-Month records found.");
+      if (invalidDates) state.issues.push(`${getFileLabel(file)}: skipped ${invalidDates.toLocaleString()} row(s) with invalid Week-Month dates.`);
+      if (duplicateDates) state.issues.push(`${getFileLabel(file)}: ignored ${duplicateDates.toLocaleString()} duplicate Material + Week-Month row(s) already imported from this or an earlier file (kept first).`);
+      if (malformedRows) state.issues.push(`${getFileLabel(file)}: ${malformedRows.toLocaleString()} row(s) had a different CSV column count; rows were padded and still processed when Material/Week-Month were valid.`);
+      return { file: getFileLabel(file), sheetName: "CSV", importedRows, newLayout: true };
+    }
+
+    function renderPreview() {
+      const table = $("#previewTable");
+      const header = `<thead><tr>${state.columns.map((value) => `<th>${escapeHtml(value)}</th>`).join("")}</tr></thead>`;
+      const previewRows = state.rows.slice(0, 100).map((row, rowIndex) => {
+        const cells = state.columns.map((_, colIndex) => {
+          const value = row[colIndex];
+          const isDate = state.dateCells.has(`${rowIndex}:${colIndex}`);
+          const display = isDate && value !== null && value !== undefined ? XLSX.SSF.format("d-mmm-yy", value) : value;
+          return `<td>${escapeHtml(display ?? "")}</td>`;
+        }).join("");
+        return `<tr>${cells}</tr>`;
+      }).join("");
+      table.innerHTML = header + `<tbody>${previewRows}</tbody>`;
+      $("#previewInfo").textContent = state.rows.length > 100 ? `Showing 100 of ${state.rows.length} rows` : `Showing ${state.rows.length} rows`;
+      $("#previewCard").hidden = false;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
+    }
+
+    function renderSummary(results) {
+      const selectedCount = state.files.length;
+      const successCount = results.length;
+      $("#fileCount").textContent = `${successCount} / ${selectedCount}`;
+      $("#rowCount").textContent = state.rows.length.toLocaleString();
+      $("#colCount").textContent = state.columns.length;
+      const successItems = results.map((result) => `<li>✅ ${escapeHtml(result.file)} — ${result.importedRows.toLocaleString()} rows</li>`);
+      const failedItems = state.failedFiles.map((result) => `<li>❌ ${escapeHtml(result.file)} — ${escapeHtml(result.error)}</li>`);
+      $("#fileList").innerHTML = [...successItems, ...failedItems].join("");
+      $("#issues").innerHTML = state.issues.length ? `<div class="issue"><b>Notes:</b><br>${state.issues.map(escapeHtml).join("<br>")}</div>` : "";
+      $("#summary").classList.add("show");
+    }
+
+    function auditSourceCoverage() {
+      const partCol = findColumn("LD Part");
+      if (partCol === -1 || !state.audit.sourceMaterials.size) return;
+      const outputMaterials = new Set(
+        state.rows
+          .map((row) => normalizedText(row[partCol]))
+          .filter(Boolean)
+      );
+      const missing = [...state.audit.sourceMaterials].filter((part) => !outputMaterials.has(part));
+      const sourceCount = state.audit.sourceMaterials.size;
+      const outputCount = outputMaterials.size;
+      state.issues.push(
+        `Source audit: scanned ${state.audit.sourceRows.toLocaleString()} CSV row(s); ` +
+        `${state.audit.validRows.toLocaleString()} valid Material + Week-Month row(s); ` +
+        `${sourceCount.toLocaleString()} unique Material(s); ${outputCount.toLocaleString()} unique Material(s) in output.`
+      );
+      if (state.audit.invalidDateRows) {
+        state.issues.push(`Source audit: ${state.audit.invalidDateRows.toLocaleString()} row(s) had invalid Week-Month and were excluded.`);
+      }
+      if (state.audit.duplicateRows) {
+        state.issues.push(`Source audit: ${state.audit.duplicateRows.toLocaleString()} duplicate Material + Week-Month row(s) were excluded by the existing keep-first rule.`);
+      }
+      if (state.audit.malformedRows) {
+        state.issues.push(`Source audit: ${state.audit.malformedRows.toLocaleString()} row(s) had a different CSV column count; valid Material/Week-Month rows were retained where possible.`);
+      }
+      if (missing.length) {
+        const preview = missing.slice(0, 25).join(", ");
+        state.issues.push(`COVERAGE WARNING: ${missing.length.toLocaleString()} Material(s) exist in the CSV but are missing from output: ${preview}${missing.length > 25 ? " …" : ""}`);
+      } else {
+        state.issues.push(`Coverage check passed: 100% of Material IDs found in the CSV are present in the output.`);
+      }
+    }
+
+    function rowsForExport() {
+      const typeColumn = findColumn("Type");
+      const timelineIndexes = state.columns
+        .map((header, index) => state.timelineColumns.has(header) ? index : -1)
+        .filter((index) => index !== -1);
+
+      const zeroBlankTypes = new Set([
+        "01 demand",
+        "01 demand fcst-xys",
+        "02 supply"
+      ]);
+
+      return state.rows.map((sourceRow) => {
+        const row = [...sourceRow];
+        if (typeColumn === -1 || !zeroBlankTypes.has(normalizedText(row[typeColumn]))) return row;
+
+        timelineIndexes.forEach((column) => {
+          const value = row[column];
+          if (
+            value === null ||
+            value === undefined ||
+            (typeof value === "string" && value.trim() === "")
+          ) {
+            row[column] = 0;
+          }
+        });
+        return row;
+      });
+    }
+
+    function exportWorkbook() {
+      // Export-only rule: blanks -> 0 for Demand / FCST-XYS / Supply Timeline cells.
+      // Keep state.rows unchanged so Preview and previous calculation logic stay the same.
+      const exportRows = rowsForExport();
+      const worksheet = XLSX.utils.aoa_to_sheet([state.columns, ...exportRows]);
+      state.accVarianceFormulas.forEach((formula, key) => {
+        const [row, col] = key.split(":").map(Number);
+        const address = outputCellAddress(row, col);
+        worksheet[address] = { t: "n", v: exportRows[row][col], f: formula };
+      });
+      state.dateCells.forEach((key) => {
+        const [row, col] = key.split(":").map(Number);
+        const address = XLSX.utils.encode_cell({ r: row + 1, c: col });
+        if (worksheet[address]) {
+          const cell = worksheet[address];
+          const value = cell.v;
+          // Sentinel dates remain readable and sortable as ISO text when
+          // Excel cannot reliably display them under the user's date locale.
+          if (typeof value === "number" && value >= 2958435) {
+            cell.t = "s";
+            cell.v = XLSX.SSF.format("yyyy-mm-dd", value);
+            delete cell.w;
+          } else if (typeof value === "number" && Number.isFinite(value)) {
+            cell.t = "n";
+            cell.z = "yyyy-mm-dd";
+            delete cell.w;
+          }
+        }
+      });
+      state.columns.forEach((_, col) => {
+        const cell = worksheet[XLSX.utils.encode_cell({ r: 0, c: col })];
+        if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "103B66" } }, alignment: { vertical: "center" } };
+      });
+      worksheet["!cols"] = state.columns.map((header, col) => {
+        let width = Math.max(10, String(header).length + 2);
+        for (let row = 0; row < Math.min(state.rows.length, 200); row += 1) {
+          const value = exportRows[row][col];
+          const shown = state.dateCells.has(`${row}:${col}`) && typeof value === "number" ? XLSX.SSF.format("yyyy-mm-dd", value) : String(value ?? "");
+          width = Math.max(width, shown.length + 2);
+        }
+        return { wch: Math.min(width, 42) };
+      });
+      worksheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: state.rows.length, c: Math.max(0, state.columns.length - 1) } }) };
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Merged");
+      workbook.Workbook = { CalcPr: { calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true } };
+      return workbook;
+    }
+
+    async function mergeFiles() {
+      if (!window.XLSX) {
+        status("The SheetJS library could not be loaded. Check your Internet connection and reopen the HTML file.", "error");
+        return;
+      }
+      resetResult();
+      startProcessingTimer();
+      $("#folderInput").disabled = true;
+      $("#clearBtn").disabled = true;
+      status(`Reading ${state.files.length} file(s)…`);
+      const results = [];
+      let hasNewLayout = false;
+      for (const file of state.files) {
+        try {
+          results.push(await readFile(file));
+          if (results[results.length - 1].newLayout) hasNewLayout = true;
+        } catch (error) {
+          const message = error?.message || "could not read the file";
+          state.failedFiles.push({ file: getFileLabel(file), error: message });
+          state.issues.push(`FAILED FILE — ${getFileLabel(file)}: ${message}`);
+        }
+      }
+      $("#folderInput").disabled = false;
+      $("#clearBtn").disabled = false;
+      if (state.failedFiles.length) {
+        state.issues.unshift(`FILE CHECK: selected ${state.files.length.toLocaleString()}, processed ${results.length.toLocaleString()}, failed ${state.failedFiles.length.toLocaleString()}. Failed files were NOT included in the merge.`);
+      } else {
+        state.issues.unshift(`FILE CHECK: selected ${state.files.length.toLocaleString()}, processed ${results.length.toLocaleString()}, failed 0. All selected CSV files were included.`);
+      }
+      if (!results.length || !state.rows.length) {
+        stopProcessingTimer("error");
+        status("No valid data rows to merge. Review Notes to check the source files.", "error");
+        if (state.issues.length) { renderSummary(results); }
+        return;
+      }
+      const generatedTypes = hasNewLayout ? completeFourRowsPerMaterial() : 0;
+      if (generatedTypes) state.issues.push(`Added ${generatedTypes.toLocaleString()} missing Type row(s) so each Material has four rows.`);
+      sortTimelineColumns();
+      const zeroedForecastRows = zeroForecastTimelineWhenRopIsZero();
+      const removedBlankTypeRows = filterAndSortRows();
+      const accVariance = calculateAccVariance();
+      if (zeroedForecastRows) state.issues.push(`Set Timeline values to 0 for ${zeroedForecastRows.toLocaleString()} FCST-XYS row(s) where ROP = 0.`);
+      if (removedBlankTypeRows) state.issues.push(`Removed ${removedBlankTypeRows.toLocaleString()} row(s) with blank LD Part or Type.`);
+      if (accVariance.calculatedRows) state.issues.push(`Calculated 03 Acc Variance for ${accVariance.calculatedRows.toLocaleString()} row(s).`);
+      if (accVariance.skippedRows) state.issues.push(`Skipped ${accVariance.skippedRows.toLocaleString()} 03 Acc Variance row(s) because a matching Demand, FCST-XYS, or Supply row was missing.`);
+      auditSourceCoverage();
+      renderSummary(results);
+      renderPreview();
+      $("#downloadBtn").disabled = false;
+      $("#csvBtn").disabled = false;
+      const elapsed = stopProcessingTimer(state.failedFiles.length ? "error" : "done");
+      status(
+        state.failedFiles.length
+          ? `PARTIAL MERGE: ${results.length}/${state.files.length} file(s) processed; ${state.failedFiles.length} failed · ${formatProcessingTime(elapsed)}.`
+          : `Merge complete: all ${results.length}/${state.files.length} file(s), ${state.rows.length.toLocaleString()} rows · ${formatProcessingTime(elapsed)}.`,
+        state.failedFiles.length ? "error" : "ok"
+      );
+    }
+
+    $("#folderInput").addEventListener("change", async (event) => {
+      resetResult();
+      resetProcessingTimer();
+      state.files = [];
+      setSelectedFiles(event.target.files, "folder");
+      if (state.files.length) await mergeFiles();
+    });
+    $("#clearBtn").addEventListener("click", () => {
+      state.files = [];
+      $("#folderInput").value = "";
+      resetResult();
+      resetProcessingTimer();
+      $("#clearBtn").disabled = true;
+      $("#folderPicker").classList.remove("is-selected");
+      status("Selection cleared. Select CSV file(s) to merge automatically.");
+    });
+    $("#unlockBtn").addEventListener("click", () => {
+      const password = $("#rulesPassword").value.trim();
+      if (!password) {
+        $("#rulesHint").textContent = "Enter a password to view the processing rules.";
+        $("#rulesPassword").focus();
+        return;
+      }
+      $("#rulesCard").classList.add("is-unlocked");
+      $("#rulesPassword").value = "";
+      $("#rulesPassword").disabled = true;
+      $("#unlockBtn").disabled = true;
+      $("#unlockBtn").textContent = "Unlocked";
+      $("#rulesHint").textContent = "Processing rules unlocked for this session.";
+    });
+    $("#rulesPassword").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") $("#unlockBtn").click();
+    });
+    $("#downloadBtn").addEventListener("click", () => XLSX.writeFile(exportWorkbook(), "Merged_Excel.xlsx", { cellDates: false }));
+    $("#csvBtn").addEventListener("click", () => XLSX.writeFile(exportWorkbook(), "Merged_Excel.csv", { bookType: "csv" }));
+  </script>
+</body>
+</html>
